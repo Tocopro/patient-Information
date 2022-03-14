@@ -1,0 +1,73 @@
+
+
+class Intake(Process):
+    Queue = [] #patient queue
+    Idle = [] #idle PAs list
+    Busy = [] #busy PAs list
+    Waits=[] #list of wait times, the D2D time
+    #Wholetime=[] #list of whole time spent in ED
+    IQ = [] #amount in queue when a customer leaves
+    NDone = 0 #total number of customers that have been services 
+    i = 0 #new; counter of bed occupation 
+    def __init__(self):
+        Process.__init__(self)
+        Intake.Idle.append(self) #initially idle 
+    def Run(self):
+        while Intake.i <= 20: # new new new bed 
+            yield passivate,self #remain idle until customer is ready 
+            Intake.Idle.remove(self)
+            Intake.Busy.append(self)
+
+            while Intake.Queue != []: #perform while customers in queue
+                P = Intake.Queue.pop(0) # get customer 
+                Intake.i += 1  #new new new  bed
+                Intake.ServiceRate1 = 0.1 / (P.Severity)
+                Intake.Waits.append(now() - P.ArrivalTime)
+                Intake.IQ.append(len(Intake.Queue)) 
+                ServiceTime = G.Rnd.expovariate(Intake.ServiceRate1) 
+                yield hold,self,ServiceTime #perform job 
+                Intake.NDone += 1 
+
+                if rand() <=  0.8:
+                    Lab.Queue.append(P)
+                    if Lab.Idle != []:
+                       reactivate(Lab.Idle[0])
+                else:
+                    Treatment.Queue.append(P)
+                    Intake.i -= 1
+                    if Treatment.Idle != []:
+                       reactivate(Treatment.Idle[0])
+
+            Intake.Busy.remove(self) 
+            Intake.Idle.append(self)
+
+""" Lab Process (with P=0.8 patients come here)"""  
+class Lab(Process):
+
+    Queue = [] #patient queue
+    Idle = [] #idle PAs list
+    Busy = [] #busy PAs list
+    Wholetime=[] #list of whole time spent in ED
+    #Waits=[] #list of wait times, the D2D time
+    #hQ = [] #amount in queue when a customer leaves
+    NDone = 0 #total number of customers that have been services 
+    def __init__(self):
+        Process.__init__(self)
+        Lab.Idle.append(self) #initially idle 
+    def Run(self):
+        while True:
+            yield passivate,self #remain idle until customer is ready 
+            Lab.Idle.remove(self)
+            Lab.Busy.append(self)
+            while Lab.Queue != []: #perform while customers in queue
+                P = Lab.Queue.pop(0) # get customer 
+                #Lab.hQ.append(len(Lab.Queue))
+                ServiceRate2 = 1.0/(P.Severity) #service rate is recipricol of mean service time  #### for Lab
+                ServiceTime = G.Rnd.expovariate(ServiceRate2) 
+                Lab.Wholetime.append(now() - P.ArrivalTime + ServiceTime)
+                yield hold,self,ServiceTime #perform job 
+                #Lab.Wholetime.append(now() - P.Arriv)
+                Lab.NDone += 1  
+                Intake.i -= 1   ## new new new bed 
+            Lab.Busy.remove(self) 
+            Lab.Idle.append(self) 
